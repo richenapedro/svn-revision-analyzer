@@ -31,3 +31,43 @@ class SvnClient:
             raise RuntimeError(result.stderr.strip())
 
         return parse_log_xml(result.stdout)
+
+    def cat_file(self, repository_path: str, revision: int) -> bytes:
+        result = subprocess.run(
+            ["svn", "cat", "-r", str(revision), repository_path],
+            cwd=self.project_path,
+            capture_output=True,
+        )
+
+        if result.returncode != 0:
+            raise RuntimeError(result.stderr.decode(errors="replace").strip())
+
+        return result.stdout
+
+
+    def get_revision_diff(self, revision: int) -> str:
+        result = subprocess.run(
+            ["svn", "diff", "-c", str(revision)],
+            cwd=self.project_path,
+            capture_output=True,
+            text=True,
+        )
+
+        if result.returncode != 0:
+            raise RuntimeError(result.stderr.strip())
+
+        return result.stdout
+
+
+    def get_revision_info_text(self, revision: int) -> str:
+        result = subprocess.run(
+            ["svn", "log", "-r", str(revision), "-v"],
+            cwd=self.project_path,
+            capture_output=True,
+            text=True,
+        )
+
+        if result.returncode != 0:
+            raise RuntimeError(result.stderr.strip())
+
+        return result.stdout

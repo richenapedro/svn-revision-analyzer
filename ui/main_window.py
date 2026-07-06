@@ -10,6 +10,7 @@ from svn.svn_client import SvnClient
 from ui.changed_files_list import ChangedFilesList
 from ui.revision_table import RevisionTable
 
+
 class MainWindow:
     def __init__(self) -> None:
         self.root = ttk.Window(
@@ -20,6 +21,7 @@ class MainWindow:
         self.project_path_var = tk.StringVar()
         self.status_var = tk.StringVar(value="Pronto.")
         self.revisions: list[Revision] = []
+        self.selected_revision: Revision | None = None
 
         self._build_layout()
 
@@ -127,6 +129,7 @@ class MainWindow:
             return
 
         self._populate_revision_table()
+        self.selected_revision = None
         self.status_var.set(f"{len(self.revisions)} revisões carregadas.")
 
     def _export_revision(self) -> None:
@@ -136,5 +139,10 @@ class MainWindow:
         self.revision_table.set_revisions(self.revisions)
 
     def _on_revision_selected(self, revision: Revision) -> None:
+        self.selected_revision = revision
+
         self.changed_files_list.set_revision(revision)
-        self.status_var.set(f"Revisão {revision.revision} selecionada.")
+
+        self.status_var.set(
+            f"Revisão {revision.revision} selecionada."
+        )
