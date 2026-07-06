@@ -35,7 +35,7 @@ class RevisionExporter:
         revision: Revision,
         workspace: ExportWorkspace,
     ) -> None:
-        content = self.svn_client.get_revision_info_text(revision.revision)
+        content = self.svn_client.get_revision_info(revision.revision)
         FileExporter.write_text(workspace.info_file, content)
 
     def _export_diff(
@@ -64,7 +64,7 @@ class RevisionExporter:
         if not changed_path.exists_before:
             return
 
-        content = self.svn_client.cat_file(
+        content = self.svn_client.get_file_content(
             repository_path=changed_path.path,
             revision=revision.revision - 1,
         )
@@ -81,7 +81,7 @@ class RevisionExporter:
         if not changed_path.exists_after:
             return
 
-        content = self.svn_client.cat_file(
+        content = self.svn_client.get_file_content(
             repository_path=changed_path.path,
             revision=revision.revision,
         )

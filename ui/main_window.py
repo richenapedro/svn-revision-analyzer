@@ -3,13 +3,13 @@ import tkinter as tk
 from tkinter import filedialog
 
 import ttkbootstrap as ttk
-from ttkbootstrap.constants import BOTH, X, LEFT
+from ttkbootstrap.constants import BOTH, LEFT, X
 
+from exporter.exporter import RevisionExporter
 from svn.models import Revision
 from svn.svn_client import SvnClient
 from ui.changed_files_list import ChangedFilesList
 from ui.revision_table import RevisionTable
-from exporter.exporter import RevisionExporter
 
 
 class MainWindow:
@@ -19,8 +19,10 @@ class MainWindow:
             themename="flatly",
             size=(1000, 700),
         )
+
         self.project_path_var = tk.StringVar()
-        self.status_var = tk.StringVar(value="Pronto.")
+        self.status_var = tk.StringVar(value="Ready.")
+
         self.revisions: list[Revision] = []
         self.selected_revision: Revision | None = None
 
@@ -40,7 +42,7 @@ class MainWindow:
         self._build_status_bar(main_frame)
 
     def _build_project_selector(self, parent: ttk.Frame) -> None:
-        frame = ttk.Labelframe(parent, text="Projeto SVN", padding=10)
+        frame = ttk.Labelframe(parent, text="SVN Project", padding=10)
         frame.pack(fill=X, pady=(0, 10))
 
         entry = ttk.Entry(frame, textvariable=self.project_path_var)
@@ -48,21 +50,21 @@ class MainWindow:
 
         browse_button = ttk.Button(
             frame,
-            text="Selecionar...",
+            text="Browse...",
             command=self._select_project_folder,
         )
         browse_button.pack(side=LEFT)
 
         load_button = ttk.Button(
             frame,
-            text="Carregar Revisões",
+            text="Load Revisions",
             bootstyle="primary",
             command=self._load_revisions,
         )
         load_button.pack(side=LEFT, padx=(8, 0))
 
     def _build_revision_area(self, parent: ttk.Frame) -> None:
-        frame = ttk.Labelframe(parent, text="Revisões", padding=10)
+        frame = ttk.Labelframe(parent, text="Revisions", padding=10)
         frame.pack(fill=BOTH, expand=True, pady=(0, 10))
 
         self.revision_table = RevisionTable(
@@ -72,7 +74,7 @@ class MainWindow:
         self.revision_table.pack(fill=BOTH, expand=True)
 
     def _build_changed_files_area(self, parent: ttk.Frame) -> None:
-        frame = ttk.Labelframe(parent, text="Arquivos alterados", padding=10)
+        frame = ttk.Labelframe(parent, text="Changed Files", padding=10)
         frame.pack(fill=BOTH, expand=True, pady=(0, 10))
 
         self.changed_files_list = ChangedFilesList(frame)
@@ -84,7 +86,7 @@ class MainWindow:
 
         export_button = ttk.Button(
             frame,
-            text="Exportar Revisão",
+            text="Export Revision",
             bootstyle="success",
             command=self._export_revision,
         )
@@ -101,50 +103,52 @@ class MainWindow:
 
     def _select_project_folder(self) -> None:
         selected_path = filedialog.askdirectory(
-            title="Selecionar pasta do projeto SVN"
+            title="Select SVN Project Folder",
         )
 
         if not selected_path:
             return
 
         self.project_path_var.set(str(Path(selected_path)))
-        self.status_var.set("Pasta SVN selecionada.")
+        self.status_var.set("SVN project selected.")
 
     def _load_revisions(self) -> None:
         project = self.project_path_var.get()
 
         if not project:
-            self.status_var.set("Selecione um projeto SVN primeiro.")
+            self.status_var.set("Please select an SVN project first.")
             return
 
         client = SvnClient(Path(project))
 
         if not client.is_working_copy():
-            self.status_var.set("A pasta selecionada não é um projeto SVN.")
+            self.status_var.set("The selected folder is not an SVN working copy.")
             return
 
         try:
             self.revisions = client.get_recent_revisions(limit=100)
         except RuntimeError as error:
-            self.status_var.set(f"Erro ao carregar revisões: {error}")
+            self.status_var.set(f"Failed to load revisions: {error}")
             return
 
         self._populate_revision_table()
         self.selected_revision = None
-        self.status_var.set(f"{len(self.revisions)} revisões carregadas.")
+
+        self.status_var.set(f"{len(self.revisions)} revisions loaded.")
 
     def _export_revision(self) -> None:
         project = self.project_path_var.get()
 
         if not project:
-            self.status_var.set("Selecione um projeto SVN primeiro.")
+            self.status_var.set("Please select an SVN project first.")
             return
 
         if self.selected_revision is None:
-            self.status_var.set("Selecione uma revisão primeiro.")
+            self.status_var.set("Please select a revision first.")
             return
 
         client = SvnClient(Path(project))
+
         exporter = RevisionExporter(
             svn_client=client,
             output_dir=Path("output"),
@@ -153,10 +157,10 @@ class MainWindow:
         try:
             zip_path = exporter.export(self.selected_revision)
         except RuntimeError as error:
-            self.status_var.set(f"Erro ao exportar revisão: {error}")
+            self.status_var.set(f"Failed to export revision: {error}")
             return
 
-        self.status_var.set(f"Revisão exportada: {zip_path}")
+        self.status_var.set(f"Revision exported: {zip_path.name}")
 
     def _populate_revision_table(self) -> None:
         self.revision_table.set_revisions(self.revisions)
@@ -167,5 +171,5 @@ class MainWindow:
         self.changed_files_list.set_revision(revision)
 
         self.status_var.set(
-            f"Revisão {revision.revision} selecionada."
+            f"Revision {revision.revision} selected."
         )

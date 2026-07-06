@@ -1,6 +1,6 @@
 from pathlib import Path
-import subprocess
 
+from svn.command_runner import SvnCommandRunner
 from svn.models import Revision
 from svn.parser import parse_log_xml
 
@@ -8,106 +8,66 @@ from svn.parser import parse_log_xml
 class SvnClient:
     def __init__(self, project_path: Path) -> None:
         self.project_path = project_path
+        self.runner = SvnCommandRunner(project_path)
         self._repository_root_url: str | None = None
 
     def is_working_copy(self) -> bool:
-        result = subprocess.run(
-            ["svn", "info"],
-            cwd=self.project_path,
-            capture_output=True,
-            text=True,
-        )
-
-        return result.returncode == 0
+        return self.runner.succeeds(["info"])
 
     def get_recent_revisions(self, limit: int = 100) -> list[Revision]:
-        result = subprocess.run(
-            ["svn", "log", "--xml", "-v", "-l", str(limit)],
-            cwd=self.project_path,
-            capture_output=True,
-            text=True,
+        output = self.runner.run_text(
+            ["log", "--xml", "-v", "-l", str(limit)]
         )
 
-        if result.returncode != 0:
-            raise RuntimeError(result.stderr.strip())
-
-        return parse_log_xml(result.stdout)
-
-    def cat_file(self, repository_path: str, revision: int) -> bytes:
-        repository_root_url = self.get_repository_root_url()
-        normalized_path = repository_path.lstrip("/")
-        file_url = f"{repository_root_url}/{normalized_path}"
-
-        result = subprocess.run(
-            ["svn", "cat", "-r", str(revision), file_url],
-            cwd=self.project_path,
-            capture_output=True,
-        )
-
-        if result.returncode != 0:
-            raise RuntimeError(result.stderr.decode(errors="replace").strip())
-
-        return result.stdout
-
-
-    def get_revision_diff(self, revision: int) -> str:
-        result = subprocess.run(
-            ["svn", "diff", "-c", str(revision)],
-            cwd=self.project_path,
-            capture_output=True,
-            text=True,
-        )
-
-        if result.returncode != 0:
-            raise RuntimeError(result.stderr.strip())
-
-        return result.stdout
-
-
-    def get_revision_info_text(self, revision: int) -> str:
-        result = subprocess.run(
-            ["svn", "log", "-r", str(revision), "-v"],
-            cwd=self.project_path,
-            capture_output=True,
-            text=True,
-        )
-
-        if result.returncode != 0:
-            raise RuntimeError(result.stderr.strip())
-
-        return result.stdout
+        return parse_log_xml(output)
 
     def get_revision(self, revision: int) -> Revision:
-        result = subprocess.run(
-            ["svn", "log", "-r", str(revision), "--xml", "-v"],
-            cwd=self.project_path,
-            capture_output=True,
-            text=True,
+        output = self.runner.run_text(
+            ["log", "-r", str(revision), "--xml", "-v"]
         )
 
-        if result.returncode != 0:
-            raise RuntimeError(result.stderr.strip())
-
-        revisions = parse_log_xml(result.stdout)
+        revisions = parse_log_xml(output)
 
         if not revisions:
-            raise RuntimeError(f"Revisão {revision} não encontrada.")
+            raise RuntimeError(f"Revision {revision} was not found.")
 
         return revisions[0]
+
+    def get_revision_diff(self, revision: int) -> str:
+        return self.runner.run_text(
+            ["diff", "-c", str(revision)]
+        )
+
+    def get_revision_info(self, revision: int) -> str:
+        return self.runner.run_text(
+            ["log", "-r", str(revision), "-v"]
+        )
+
+    def get_file_content(
+        self,
+        repository_path: str,
+        revision: int,
+    ) -> bytes:
+        file_url = self._build_file_url(repository_path)
+
+        return self.runner.run_bytes(
+            ["cat", "-r", str(revision), file_url]
+        )
 
     def get_repository_root_url(self) -> str:
         if self._repository_root_url is not None:
             return self._repository_root_url
 
-        result = subprocess.run(
-            ["svn", "info", "--show-item", "repos-root-url"],
-            cwd=self.project_path,
-            capture_output=True,
-            text=True,
+        output = self.runner.run_text(
+            ["info", "--show-item", "repos-root-url"]
         )
 
-        if result.returncode != 0:
-            raise RuntimeError(result.stderr.strip())
+        self._repository_root_url = output.strip()
 
-        self._repository_root_url = result.stdout.strip()
         return self._repository_root_url
+
+    def _build_file_url(self, repository_path: str) -> str:
+        repository_root_url = self.get_repository_root_url()
+        normalized_path = repository_path.lstrip("/")
+
+        return f"{repository_root_url}/{normalized_path}"
