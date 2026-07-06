@@ -5,6 +5,8 @@ from tkinter import filedialog
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import BOTH, X, LEFT
 
+from svn.models import Revision
+from svn.svn_client import SvnClient
 
 class MainWindow:
     def __init__(self) -> None:
@@ -13,9 +15,9 @@ class MainWindow:
             themename="flatly",
             size=(1000, 700),
         )
-
         self.project_path_var = tk.StringVar()
         self.status_var = tk.StringVar(value="Pronto.")
+        self.revisions: list[Revision] = []
 
         self._build_layout()
 
@@ -119,13 +121,41 @@ class MainWindow:
         self.status_var.set("Pasta SVN selecionada.")
 
     def _load_revisions(self) -> None:
-        project_path = self.project_path_var.get()
+        project = self.project_path_var.get()
 
-        if not project_path:
-            self.status_var.set("Selecione uma pasta SVN primeiro.")
+        if not project:
+            self.status_var.set("Selecione um projeto SVN primeiro.")
             return
 
-        self.status_var.set("Carregar revisões ainda será implementado.")
+        client = SvnClient(Path(project))
+
+        if not client.is_working_copy():
+            self.status_var.set("A pasta selecionada não é um projeto SVN.")
+            return
+
+        try:
+            self.revisions = client.get_recent_revisions(limit=100)
+        except RuntimeError as error:
+            self.status_var.set(f"Erro ao carregar revisões: {error}")
+            return
+
+        self._populate_revision_table()
+        self.status_var.set(f"{len(self.revisions)} revisões carregadas.")
 
     def _export_revision(self) -> None:
         self.status_var.set("Exportação ainda será implementada.")
+
+    def _populate_revision_table(self) -> None:
+        self.revision_table.delete(*self.revision_table.get_children())
+
+        for revision in self.revisions:
+            self.revision_table.insert(
+                "",
+                "end",
+                values=(
+                    revision.revision,
+                    revision.author,
+                    revision.date[:19].replace("T", " "),
+                    revision.message.replace("\n", " ")[:200],
+                ),
+            )
