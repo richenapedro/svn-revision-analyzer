@@ -80,6 +80,7 @@ class MainWindow:
         self.revision_table.column("message", width=600)
 
         self.revision_table.pack(fill=BOTH, expand=True)
+        self.revision_table.bind("<<TreeviewSelect>>", self._on_revision_selected)
 
     def _build_changed_files_area(self, parent: ttk.Frame) -> None:
         frame = ttk.Labelframe(parent, text="Arquivos alterados", padding=10)
@@ -158,4 +159,42 @@ class MainWindow:
                     revision.date[:19].replace("T", " "),
                     revision.message.replace("\n", " ")[:200],
                 ),
+            )
+
+    def _on_revision_selected(self, _event: tk.Event) -> None:
+        selected_items = self.revision_table.selection()
+
+        if not selected_items:
+            return
+
+        selected_item = selected_items[0]
+        values = self.revision_table.item(selected_item, "values")
+
+        if not values:
+            return
+
+        selected_revision_number = int(values[0])
+
+        selected_revision = next(
+            (
+                revision
+                for revision in self.revisions
+                if revision.revision == selected_revision_number
+            ),
+            None,
+        )
+
+        if selected_revision is None:
+            return
+
+        self._populate_changed_files(selected_revision)
+        self.status_var.set(f"Revisão {selected_revision.revision} selecionada.")
+
+    def _populate_changed_files(self, revision: Revision) -> None:
+        self.changed_files_list.delete(0, tk.END)
+
+        for changed_path in revision.changed_paths:
+            self.changed_files_list.insert(
+                tk.END,
+                f"{changed_path.action}  {changed_path.path}",
             )
