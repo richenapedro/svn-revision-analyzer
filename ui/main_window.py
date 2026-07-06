@@ -9,6 +9,7 @@ from svn.models import Revision
 from svn.svn_client import SvnClient
 from ui.changed_files_list import ChangedFilesList
 from ui.revision_table import RevisionTable
+from exporter.exporter import RevisionExporter
 
 
 class MainWindow:
@@ -133,7 +134,29 @@ class MainWindow:
         self.status_var.set(f"{len(self.revisions)} revisões carregadas.")
 
     def _export_revision(self) -> None:
-        self.status_var.set("Exportação ainda será implementada.")
+        project = self.project_path_var.get()
+
+        if not project:
+            self.status_var.set("Selecione um projeto SVN primeiro.")
+            return
+
+        if self.selected_revision is None:
+            self.status_var.set("Selecione uma revisão primeiro.")
+            return
+
+        client = SvnClient(Path(project))
+        exporter = RevisionExporter(
+            svn_client=client,
+            output_dir=Path("output"),
+        )
+
+        try:
+            zip_path = exporter.export(self.selected_revision)
+        except RuntimeError as error:
+            self.status_var.set(f"Erro ao exportar revisão: {error}")
+            return
+
+        self.status_var.set(f"Revisão exportada: {zip_path}")
 
     def _populate_revision_table(self) -> None:
         self.revision_table.set_revisions(self.revisions)
